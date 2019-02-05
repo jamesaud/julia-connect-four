@@ -204,10 +204,21 @@ move(mygame, 2)
 move(mygame, 2)
 move(mygame, 2)
 move(mygame, 1)
+move(mygame, 1)
+
+move(mygame, 5)
+move(mygame, 5)
+move(mygame, 5)
+move(mygame, 5)
+move(mygame, 2)
+move(mygame, 3)
 
 
 display(mygame.board.state)
 x, y = mygame.lastMove.x, mygame.lastMove.y
-println("Count ", _checkDiagonal1(mygame, x, y))
+println("Horz Count ", _checkHorizontal(mygame, x, y))
+println("Vert Count ", _checkVertical(mygame, x, y))
+println("DiagNegative ", _checkDiagonal1(mygame, x, y))
+println("DiagPostive ", _checkDiagonal2(mygame, x, y))
 
 end
