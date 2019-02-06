@@ -20,7 +20,7 @@ mutable struct Game
     lastMove::Move
 end
 
-Game(board, players, turn) = Game(board, players, turn, Move(0, 0))
+Game(board, players, turn) = Game(board, players, turn, Move(1, 1))
 
 # Returns the next free X coordinate for a row, given a column, or false if there is no move
 function _findRow(board::gameboard.Board, y::Int64)
@@ -86,8 +86,22 @@ function initializeGame(playerName1::String, playerName2::String, width::Int64, 
     return Game(b, [p1, p2], 1)
 end
 
+# Determines whether the LAST move is a winning move
 function winner(game::Game)
-    return false
+    x, y = game.lastMove.x, game.lastMove.y
+    if game.board.state[x, y] == gameboard.FILLER_CHAR
+        return false
+    end
+    a = _checkVertical(game, x, y)
+    b = _checkHorizontal(game, x, y)
+    c = _checkDiagonal1(game, x, y)
+    d = _checkDiagonal2(game, x, y)
+    return any(x -> x >= 4, [a, b, c, d])
+end
+
+function finished(game::Game)
+    cols = collect(1:size(game.board.state)[2])
+    return all(i -> _findRow(game.board, i)==-1, cols)
 end
 
 function _checkVertical(game::Game, x::Int64, y::Int64)
@@ -183,42 +197,6 @@ function _checkHorizontal(game::Game, x::Int64, y::Int64)
     return count
 end
 
-
 mygame = initializeGame("Computer", "Human", 4, 5)
-move(mygame, 1)
-move(mygame, 1)
-
-
-move(mygame, 3)
-move(mygame, 3)
-move(mygame, 3)
-
-
-move(mygame, 4)
-move(mygame, 4)
-move(mygame, 4)
-move(mygame, 4)
-
-
-move(mygame, 2)
-move(mygame, 2)
-move(mygame, 2)
-move(mygame, 1)
-move(mygame, 1)
-
-move(mygame, 5)
-move(mygame, 5)
-move(mygame, 5)
-move(mygame, 5)
-move(mygame, 2)
-move(mygame, 3)
-
-
-display(mygame.board.state)
-x, y = mygame.lastMove.x, mygame.lastMove.y
-println("Horz Count ", _checkHorizontal(mygame, x, y))
-println("Vert Count ", _checkVertical(mygame, x, y))
-println("DiagNegative ", _checkDiagonal1(mygame, x, y))
-println("DiagPostive ", _checkDiagonal2(mygame, x, y))
-
+finished(mygame)
 end
