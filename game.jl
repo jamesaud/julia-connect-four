@@ -22,6 +22,22 @@ end
 
 Game(board, players, turn) = Game(board, players, turn, Move(1, 1))
 
+# Returns a list containing all available columns to move
+function available_moves(board::gameboard.Board)
+    y = size(board.state)[2]
+    available = Int64[]
+    for i = 1:y
+        if board.state[1, i] == gameboard.FILLER_CHAR
+            push!(available, i)
+        end
+    end
+    return available
+end
+
+function available_moves(game::Game)
+    return available_moves(game.board)
+end
+
 # Returns the next free X coordinate for a row, given a column, or false if there is no move
 function _findRow(board::gameboard.Board, y::Int64)
     if _overlapsPiece(board, 1, y)
@@ -49,7 +65,8 @@ function _overlapsPiece(board::gameboard.Board, x::Int64, y::Int64)
 end
 
 
-function move(game::Game, y::Int64)
+# Returns row where move y should end up at. Throws an error if move isn't valid.
+function validate_move_row(game::Game, y::Int64)
     if !_insideBoard(game.board, 1, y)
         dim = size(game.board.state)
         throw(DomainError(y, "Outside board dimensions $dim"))
@@ -59,6 +76,11 @@ function move(game::Game, y::Int64)
     if x == -1
         throw(DomainError(y, "No available moves in column $y"))
     end
+    return x
+end
+
+function move(game::Game, y::Int64)
+    x = validate_move_row(game, y)
 
     # Make move
     game.board.state[x, y] = game.players[game.turn].token
@@ -79,7 +101,6 @@ function initializeGame(playerName1::String, playerName2::String, width::Int64, 
     if width < 0 || height < 0
         throw(DomainError((width, height), "board dimensions can't be negative"))
     end
-
     b = gameboard.MakeBoard(width, height)
     p1 = Player(playerName1, "X")
     p2 = Player(playerName2, "O")
@@ -104,6 +125,7 @@ function finished(game::Game)
     return all(i -> _findRow(game.board, i)==-1, cols)
 end
 
+# Finds number of connected pieces given the last move
 function _checkVertical(game::Game, x::Int64, y::Int64)
     state = game.board.state
     token = state[x, y]
@@ -117,10 +139,19 @@ function _checkVertical(game::Game, x::Int64, y::Int64)
         end
         count += 1
     end
+
+    # Above
+    for i = x-1:-1:1
+        if state[i, y] != token
+            break
+        end
+        count += 1
+    end
+
     return count
 end
 
-
+# Finds number of connected pieces given the last move
 function _checkDiagonal1(game::Game, x::Int64, y::Int64)
     state = game.board.state
     token = state[x, y]
@@ -147,6 +178,7 @@ function _checkDiagonal1(game::Game, x::Int64, y::Int64)
     return count
 end
 
+# Finds number of connected pieces given the last move
 function _checkDiagonal2(game::Game, x::Int64, y::Int64)
     state = game.board.state
     token = state[x, y]
@@ -173,7 +205,7 @@ function _checkDiagonal2(game::Game, x::Int64, y::Int64)
     return count
 end
 
-
+# Finds number of connected pieces given the last move
 function _checkHorizontal(game::Game, x::Int64, y::Int64)
     state = game.board.state
     token = state[x, y]
@@ -196,7 +228,4 @@ function _checkHorizontal(game::Game, x::Int64, y::Int64)
     end
     return count
 end
-
-mygame = initializeGame("Computer", "Human", 4, 5)
-finished(mygame)
 end
