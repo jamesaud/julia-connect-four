@@ -35,7 +35,7 @@ end
 function previousTurn(mygame::Game)
     turn = mygame.turn - 1
     if turn == 0
-        turn = len(mygame.players)
+        turn = length(mygame.players)
     end
     return turn
 end

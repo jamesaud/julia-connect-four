@@ -19,11 +19,7 @@ SCORES = Dict{Union{String, Integer}, Integer}(
 function minimax(mygame::game.Game)
     cur_depth = 0
     max_depth = 3
-
     cost, move = mm(cur_depth, max_depth, mygame)
-    #println("Max Cost", cost)
-    print(cost, " for player ", game.currentPlayer(mygame))
-
     return move
 end
 
@@ -132,7 +128,7 @@ end
 function runGame()
     mygame = game.initializeGame("Human", "Computer", 4, 5)
     display(mygame.board.state)
-    println
+    println()
 
     flag = true
     while !game.winner(mygame) && !game.finished(mygame)
@@ -144,7 +140,13 @@ function runGame()
         display(mygame.board.state)
         println()
     end
-    println("Game finished!")
+
+    if game.winner(mygame)
+        msg = string(game.previousPlayer(mygame).name, " wins!")
+    else
+        msg = "It's a draw." 
+    end
+    println("Game finished! $msg")
 end
 
 function makeUserMove(mygame::game.Game)
