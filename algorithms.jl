@@ -17,19 +17,39 @@ SCORES = Dict{Union{String, Integer}, Integer}(
 
 function minimax(mygame::game.Game)
     cur_depth = 0
-    max_depth = 3
+    max_depth = 1
 
     cost = mm(cur_depth, max_depth, mygame)
 end
 
+
 function mm(cur_depth::Int64, max_depth::Int64, mygame::game.Game)
+    if cur_depth > max_depth
+        return evaluation(mygame) 
+    end
+
     moves = game.available_moves(mygame)
     new_games = game.Game[]
+
+    # Make all new possible moves
     for move in moves
         new_game = deepcopy(mygame)
         game.move(new_game, move)
         push!(new_games, new_game)
     end 
+
+    # Recursive
+    choices = []
+    for gm in new_games
+        score = mm(cur_depth + 1, max_depth, gm)
+        push!(choices, [score, gm])
+    end
+
+    # TODO: Find the right choice for minimax
+    choice_index = findmin(map(x=>x[1], choices)) # MAX (or min?) SCORE in choices. Should work because evaluate returns the score based on the current player's move 
+    game_choice = choices[choice_index][2]
+    move = game_choice.last_move
+    return move
 end
 
 
@@ -65,7 +85,7 @@ function evaluation(mygame::game.Game)
             connected = min(connected, 4)    # connection of 5, 6, 7, etc don't mean anything
             score += SCORES[connected]
         end
-        println(score)
+        score -= length(fns) - 1             # Prevent counting the same [i, j] multiple times 
         scores[token] += score
     end; end
 
@@ -74,17 +94,17 @@ function evaluation(mygame::game.Game)
         push!(player_scores, scores[player.token])
     end
 
-    return player_scores
+    hero = player_scores[mygame.turn] 
+    enemy = sum(player_scores) - hero
+    return hero - enemy
 end
+
 
 
 mygame = game.initializeGame("Computer", "Human", 4, 5)
 game.move(mygame, 1)
 game.move(mygame, 2)
 game.move(mygame, 1)
-
-display(mygame.board.state)
-println()
-println(evaluation(mygame))
+minimax(mygame)
 
 end
