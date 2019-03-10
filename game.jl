@@ -20,7 +20,35 @@ mutable struct Game
     lastMove::Move
 end
 
-Game(board, players, turn) = Game(board, players, turn, Move(1, 1))
+function currentPlayer(mygame::Game)
+    return mygame.players[mygame.turn]
+end
+
+function previousPlayer(mygame::Game)
+    return mygame.players[previousTurn(mygame)]
+end
+
+function nextPlayer(mygame::Game)
+    return mygame.players[nextTurn(mygame)]
+end
+
+function previousTurn(mygame::Game)
+    turn = mygame.turn - 1
+    if turn == 0
+        turn = len(mygame.players)
+    end
+    return turn
+end
+
+function nextTurn(mygame::Game)
+    turn = mygame.turn + 1
+    if turn > length(mygame.players)
+        turn = 1
+    end
+    return turn
+end
+
+Game(board, players) = Game(board, players, 1, Move(1, 1))
 
 # Returns a list containing all available columns to move
 function available_moves(board::gameboard.Board)
@@ -90,10 +118,7 @@ end
 
 
 function changeTurn(game::Game)
-    game.turn += 1
-    if game.turn > length(game.players)
-        game.turn = 1
-    end
+    game.turn = nextTurn(game)
 end
 
 
@@ -104,7 +129,7 @@ function initializeGame(playerName1::String, playerName2::String, width::Int64, 
     b = gameboard.MakeBoard(width, height)
     p1 = Player(playerName1, "X")
     p2 = Player(playerName2, "O")
-    return Game(b, [p1, p2], 1)
+    return Game(b, [p1, p2])
 end
 
 # Determines whether the LAST move is a winning move
@@ -120,6 +145,7 @@ function winner(game::Game)
     return any(x -> x >= 4, [a, b, c, d])
 end
 
+# Determines whether the game board is full
 function finished(game::Game)
     cols = collect(1:size(game.board.state)[2])
     return all(i -> _findRow(game.board, i)==-1, cols)

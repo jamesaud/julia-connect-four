@@ -2,6 +2,7 @@ module algorithms
 
 include("./game.jl")
 include("./board.jl")
+using .game
 
 SCORES = Dict{Union{String, Integer}, Integer}(
     "win" => 1000,
@@ -12,21 +13,28 @@ SCORES = Dict{Union{String, Integer}, Integer}(
     4 => 1000,
     3 => 3,
     2 => 2,
-    1 => 1
+    1 => 1,
 )
 
 function minimax(mygame::game.Game)
     cur_depth = 0
-    max_depth = 1
+    max_depth = 3
 
-    cost = mm(cur_depth, max_depth, mygame)
+    cost, move = mm(cur_depth, max_depth, mygame)
+    #println("Max Cost", cost)
+    print(cost, " for player ", game.currentPlayer(mygame))
+
+    return move
 end
 
 
-function mm(cur_depth::Int64, max_depth::Int64, mygame::game.Game)
-    if cur_depth > max_depth
-        return evaluation(mygame) 
+# Returns (score, move) tuple
+function mm(cur_depth::Int64, max_depth::Int64, mygame::game.Game, hero=true)
+    if (cur_depth > max_depth) | game.winner(mygame) | game.finished(mygame)
+        # Always considered 'max' for player 1
+        return evaluation(mygame), mygame.lastMove
     end
+
 
     moves = game.available_moves(mygame)
     new_games = game.Game[]
@@ -41,19 +49,26 @@ function mm(cur_depth::Int64, max_depth::Int64, mygame::game.Game)
     # Recursive
     choices = []
     for gm in new_games
-        score = mm(cur_depth + 1, max_depth, gm)
-        push!(choices, [score, gm])
+        score, _ = mm(cur_depth + 1, max_depth, gm, !hero)
+        push!(choices, (score=score, move=gm.lastMove.y))
     end
 
     # TODO: Find the right choice for minimax
-    choice_index = findmin(map(x=>x[1], choices)) # MAX (or min?) SCORE in choices. Should work because evaluate returns the score based on the current player's move 
-    game_choice = choices[choice_index][2]
-    move = game_choice.last_move
-    return move
+    fn(x) = x.score  # Gets the cost from the returned (cost, move) tuple
+    findfn = hero ? findmax : findmin
+    
+    val, choice_index = findfn(map(fn, choices)) 
+    
+    best_move = choices[choice_index].move
+    return val, best_move
 end
 
 
-function evaluation(mygame::game.Game)
+function evaluation(mygame::game.Game, hero_index=2)  
+    if game.finished(mygame)
+        return 0
+    end
+
     state = mygame.board.state
     fns = [game._checkVertical, game._checkDiagonal1, game._checkDiagonal2, game._checkHorizontal] 
 
@@ -94,17 +109,88 @@ function evaluation(mygame::game.Game)
         push!(player_scores, scores[player.token])
     end
 
-    hero = player_scores[mygame.turn] 
+    hero = player_scores[hero_index] 
     enemy = sum(player_scores) - hero
     return hero - enemy
 end
 
+### MAIN CODE
 
-
-mygame = game.initializeGame("Computer", "Human", 4, 5)
-game.move(mygame, 1)
-game.move(mygame, 2)
-game.move(mygame, 1)
-minimax(mygame)
-
+function randomMove(mygame::game.Game)
+    moves = game.available_moves(mygame)
+    choice = rand(1:length(moves))
+    move = moves[choice]
+    return move 
 end
+
+function makeAiMove(mygame::game.Game)
+    #move = randomMove(mygame)
+    move = algorithms.minimax(mygame)
+    return move
+end
+
+function runGame()
+    mygame = game.initializeGame("Human", "Computer", 4, 5)
+    display(mygame.board.state)
+    println
+
+    flag = true
+    while !game.winner(mygame) && !game.finished(mygame)
+        move =  flag ? makeUserMove(mygame) : makeAiMove(mygame)
+        game.move(mygame, move)
+        flag = !flag
+
+        print("\n\nMade Move\n\n")
+        display(mygame.board.state)
+        println()
+    end
+    println("Game finished!")
+end
+
+function makeUserMove(mygame::game.Game)
+    while true
+        move = getUserInput()
+        try
+            game.validate_move_row(mygame, move)
+            return move
+        catch error
+            println(error)
+        end
+    end
+    
+end
+
+function getUserInput()
+    move = nothing
+    while true
+        print("Your move: ")
+        try
+            move = readline(stdin)
+            move = parse(Int64, move)
+            break
+        catch error
+            println("Please enter a valid column number")
+        end
+    end
+    return move
+end
+
+# mygame = game.initializeGame("Computer", "Human", 4, 5)
+# game.move(mygame, 1)
+# game.move(mygame, 2)
+# game.move(mygame, 1)
+# game.move(mygame, 2)
+# game.move(mygame, 1)
+# game.move(mygame, 2)
+# game.move(mygame, 1)
+
+# display(mygame.board.state)
+# println()
+# println(evaluation(mygame))
+
+
+
+
+runGame()
+end
+
