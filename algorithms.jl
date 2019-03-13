@@ -4,6 +4,8 @@ include("./game.jl")
 include("./board.jl")
 using .game
 
+RANDOM_MOVE = -1
+
 SCORES = Dict{Union{String, Integer}, Integer}(
     "win" => 1000,
     "lose" => -1000,
@@ -26,6 +28,7 @@ end
 
 # Returns (score, move) tuple
 function mm(cur_depth::Int64, max_depth::Int64, mygame::game.Game, hero=true)
+    # hero: whether the player is the max player or the min player
     if (cur_depth > max_depth) | game.winner(mygame) | game.finished(mygame)
         # Always considered 'max' for player 1
         return evaluation(mygame), mygame.lastMove
@@ -41,6 +44,9 @@ function mm(cur_depth::Int64, max_depth::Int64, mygame::game.Game, hero=true)
         game.move(new_game, move)
         push!(new_games, new_game)
     end 
+
+    # TODO: Come up with random move calculations
+    
 
     # Recursive
     choices = []
@@ -60,7 +66,8 @@ function mm(cur_depth::Int64, max_depth::Int64, mygame::game.Game, hero=true)
 end
 
 
-function evaluation(mygame::game.Game, hero_index=2)  
+function evaluation(mygame::game.Game, hero_index=2, random_move=false)
+    # hero_index is the player index to use as the "max" player  
     if game.finished(mygame)
         return 0
     end
@@ -112,27 +119,36 @@ end
 
 ### MAIN CODE
 
-function randomMove(mygame::game.Game)
-    moves = game.available_moves(mygame)
-    choice = rand(1:length(moves))
-    move = moves[choice]
-    return move 
-end
+
 
 function makeAiMove(mygame::game.Game)
-    #move = randomMove(mygame)
+    #move = game.randomMove(mygame)
     move = algorithms.minimax(mygame)
     return move
 end
 
 function runGame()
-    mygame = game.initializeGame("Human", "Computer", 4, 5)
+    mygame = game.initializeGame("Human", "Computer", 7, 7)
     display(mygame.board.state)
     println()
 
-    flag = true
+    flag = true                 # Keep track of whose turn it is
+    force_random_move = false    # Force random move for the next move
+
     while !game.winner(mygame) && !game.finished(mygame)
-        move =  flag ? makeUserMove(mygame) : makeAiMove(mygame)
+
+        # Force a random move
+        if !force_random_move
+            move =  flag ? makeUserMove(mygame) : makeAiMove(mygame)
+        end
+
+        if force_random_move || move == RANDOM_MOVE                     
+            move = game.randomMove(mygame)
+
+            #  Change to true if the next player needs to make a random move, or false if it's the second player's move
+            force_random_move = !force_random_move       
+        end
+
         game.move(mygame, move)
         flag = !flag
 
@@ -150,28 +166,32 @@ function runGame()
 end
 
 function makeUserMove(mygame::game.Game)
+    move = nothing
     while true
         move = getUserInput()
+        if move == RANDOM_MOVE
+            break
+        end
         try
             game.validate_move_row(mygame, move)
-            return move
+            break
         catch error
             println(error)
         end
     end
+    return move
     
 end
 
 function getUserInput()
     move = nothing
-    while true
+    while move == nothing
         print("Your move: ")
         try
-            move = readline(stdin)
-            move = parse(Int64, move)
-            break
+            input = readline(stdin)
+            move = parse(Int64, input)
         catch error
-            println("Please enter a valid column number")
+            println("Please enter a valid number")
         end
     end
     return move
