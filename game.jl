@@ -196,6 +196,30 @@ function _checkVertical(game::Game, x::Int64, y::Int64)
     return count
 end
 
+
+function _checkBlanks(game::Game, x::Int64, y::Int64)
+    state = game.board.state
+    token = state[x, y]
+    board_width, board_height = size(state)[2], size(state)[1]
+    count = 0
+
+    left = x, y - 1
+    right = x, y + 1
+    down = x + 1, y
+    up = x - 1, y
+    
+    for (i, j) in [left, right, up, down]
+        if i < 1 || j < 1 || i > board_height || j > board_width
+            continue
+      
+        elseif state[i, j] == gameboard.FILLER_CHAR
+            count += 1
+        end
+    end
+    # Down
+    return count
+end
+
 # Finds number of connected pieces given the last move
 function _checkDiagonal1(game::Game, x::Int64, y::Int64)
     state = game.board.state

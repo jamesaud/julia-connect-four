@@ -3,6 +3,8 @@ module algorithms
 include("./game.jl")
 include("./board.jl")
 using .game
+using Random
+
 
 RANDOM_MOVE = -1
 AI_TURN = nothing    
@@ -48,7 +50,7 @@ function mm(cur_depth::Int64, max_depth::Int64, mygame::game.Game, max_player=tr
 
     choices = []
     for gm in generate_possible_games(mygame)
-        score, _ = mm(cur_depth + 1, max_depth, gm, !max_player)
+        score, move = mm(cur_depth + 1, max_depth, gm, !max_player)
         push!(choices, (score=score, move=gm.lastMove.y))
     end
 
@@ -71,9 +73,9 @@ function mm(cur_depth::Int64, max_depth::Int64, mygame::game.Game, max_player=tr
     end
 
     # Calculate whether player is min or max, and find the best move
-    fn(x) = x.score 
+    shuffle!(choices)   # Make different moves that are the same value
+    fn(x) = x.score
     findfn = max_player ? findmax : findmin
-
     val, choice_index = findfn(map(fn, choices)) 
     best_move = choices[choice_index].move
 
@@ -89,19 +91,20 @@ function evaluation(mygame::game.Game, player_index)
 
     state = mygame.board.state
     fns = [game._checkVertical, game._checkDiagonal1, game._checkDiagonal2, game._checkHorizontal] 
-
+    
     # Evaluate score for both players, then subtract
     players = mygame.players
-    row, col, = size(state)
+    height, width = size(state)
 
     # Scores for each player
-    scores = Dict{String, Integer}()
+    scores = Dict{String, Float64}()
     for player in players
         scores[player.token] = 0
     end
 
     # Loop through board
-    for i = 1:row; for j = 1:col
+    for i = 1:height; for j = 1:width
+
         token = state[i, j]
         
         if token == gameboard.FILLER_CHAR 
@@ -119,10 +122,12 @@ function evaluation(mygame::game.Game, player_index)
             score += SCORES[connected]
         end
         score -= length(fns) - 1             # Prevent counting the same [i, j] multiple times 
+        # check_blanks is essiantly a tie breaker for moves - it's always better to have more connected pieces though
+        score += game._checkBlanks(mygame, i, j) / 100    
         scores[token] += score
     end; end
 
-    player_scores = Integer[]   # Scores for each player, set at the same index of the player
+    player_scores = Float64[]   # Scores for each player, set at the same index of the player
     for player in players
         push!(player_scores, scores[player.token])
     end
@@ -142,13 +147,13 @@ end
 function runGame()
     global AI_TURN
     AI_TURN = 2
-    HUMAN_TURN = 2
+    RANDOM_PLAY = false
     
     players = ["Human", "Computer"]
     if AI_TURN == 1
         players = reverse(players)
     end
-    mygame = game.initializeGame(players[1], players[2], 7, 7)
+    mygame = game.initializeGame(players[1], players[2], 6, 7)
     display(mygame.board.state)
     println()
 
@@ -159,7 +164,7 @@ function runGame()
 
         # Force a random move
         if !force_random_move
-            move =  users_turn ? makeUserMove(mygame) : makeAiMove(mygame)
+            move =  users_turn ? makeUserMove(mygame) : makeAiMove(mygame, RANDOM_PLAY)
         end
 
         if force_random_move || move == RANDOM_MOVE                     
