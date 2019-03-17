@@ -162,19 +162,19 @@ function runGame()
 
     users_turn = true
     force_random_move = false    # Force random move for the next move
-    rand_play = true
+    RAND_PLAY = false
 
     while !game.winner(mygame) && !game.finished(mygame)
         if !force_random_move
-            move =  users_turn ? makeUserMove(mygame) : makeAiMove(mygame, rand_play)
+            move = users_turn ? makeUserMove(mygame) : makeAiMove(mygame, RAND_PLAY)
         end
 
-        if force_random_move || (move == RANDOM_MOVE)                     
+        if force_random_move || (move == RANDOM_MOVE)    
             move = game.randomMove(mygame)
             force_random_move = !force_random_move #  Change to true if the next player needs to make a random move, or false if it's the second player's move
-   
         end
-
+        
+        show(move)
         game.move(mygame, move)
         users_turn = !users_turn
 
@@ -195,7 +195,7 @@ function makeUserMove(mygame::game.Game)
     while true
         move = getUserInput()
         if move == RANDOM_MOVE
-            break
+            return RANDOM_MOVE
         end
         try
             game.validate_move_row(mygame, move)
