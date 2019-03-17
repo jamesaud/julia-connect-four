@@ -3,6 +3,11 @@ module algorithms
 include("./game.jl")
 include("./board.jl")
 using .game
+using Random
+using Statistics
+
+RANDOM_MOVE = -1
+
 
 SCORES = Dict{Union{String, Integer}, Integer}(
     "win" => 1000,
@@ -16,22 +21,14 @@ SCORES = Dict{Union{String, Integer}, Integer}(
     1 => 1,
 )
 
-function minimax(mygame::game.Game)
+function minimax(mygame::game.Game, random_play)
     cur_depth = 0
-    max_depth = 3
-    cost, move = mm(cur_depth, max_depth, mygame)
+    max_depth = 4
+    cost, move = mm(cur_depth, max_depth, mygame, true, random_play)
     return move
 end
 
-
-# Returns (score, move) tuple
-function mm(cur_depth::Int64, max_depth::Int64, mygame::game.Game, hero=true)
-    if (cur_depth > max_depth) | game.winner(mygame) | game.finished(mygame)
-        # Always considered 'max' for player 1
-        return evaluation(mygame), mygame.lastMove
-    end
-
-
+function generate_possible_games(mygame::game.Game)
     moves = game.available_moves(mygame)
     new_games = game.Game[]
 
@@ -41,15 +38,45 @@ function mm(cur_depth::Int64, max_depth::Int64, mygame::game.Game, hero=true)
         game.move(new_game, move)
         push!(new_games, new_game)
     end 
+    return new_games
+end
+
+# Returns (score, move) tuple
+function mm(cur_depth::Int64, max_depth::Int64, mygame::game.Game, hero=true, random_play=false)
+    
+    # Hero is the max_player
+    if (cur_depth > max_depth) | game.winner(mygame) | game.finished(mygame)
+        # Always considered 'max' for player 1. Sooner wins are better.
+        return evaluation(mygame) - cur_depth, mygame.lastMove
+    end
 
     # Recursive
     choices = []
-    for gm in new_games
+    for gm in generate_possible_games(mygame)
         score, _ = mm(cur_depth + 1, max_depth, gm, !hero)
         push!(choices, (score=score, move=gm.lastMove.y))
     end
 
-    # TODO: Find the right choice for minimax
+    # Random Move
+    if random_play
+        random_scores = []
+        for gm in generate_possible_games(mygame)
+            winner = game.winner(gm)                        # max_player won by making this move
+            for g in generate_possible_games(mygame)
+                if winner                                   # Won/lost on the last move
+                    score = evaluation(mygame) - cur_depth
+                else      
+                    score, _ = mm(cur_depth + 2, max_depth, gm, hero)
+                end
+                push!(random_scores, score)
+            end
+        end
+        random_score = mean(random_scores)   # Take the average score
+        push!(choices, (score=random_score, move=RANDOM_MOVE))
+    end
+
+    
+    shuffle!(choices)   # Make different moves that are the same value
     fn(x) = x.score  # Gets the cost from the returned (cost, move) tuple
     findfn = hero ? findmax : findmin
     
@@ -61,7 +88,7 @@ end
 
 
 function evaluation(mygame::game.Game, hero_index=2)  
-    if game.finished(mygame)
+    if game.finished(mygame) # Tie
         return 0
     end
 
@@ -73,7 +100,7 @@ function evaluation(mygame::game.Game, hero_index=2)
     row, col, = size(state)
 
     # Scores for each player
-    scores = Dict{String, Integer}()
+    scores = Dict{String, Float64}()
     for player in players
         scores[player.token] = 0
     end
@@ -97,10 +124,13 @@ function evaluation(mygame::game.Game, hero_index=2)
             score += SCORES[connected]
         end
         score -= length(fns) - 1             # Prevent counting the same [i, j] multiple times 
+
+        # check_blanks is essiantly a tie breaker for moves - it's always better to have more connected pieces though
+        score += game._checkBlanks(mygame, i, j) / 10    
         scores[token] += score
     end; end
 
-    player_scores = Integer[]   # Scores for each player, set at the same index of the player
+    player_scores = Float64[]   # Scores for each player, set at the same index of the player
     for player in players
         push!(player_scores, scores[player.token])
     end
@@ -119,22 +149,34 @@ function randomMove(mygame::game.Game)
     return move 
 end
 
-function makeAiMove(mygame::game.Game)
+function makeAiMove(mygame::game.Game, random_play)
     #move = randomMove(mygame)
-    move = algorithms.minimax(mygame)
+    move = minimax(mygame, random_play)
     return move
 end
 
 function runGame()
-    mygame = game.initializeGame("Human", "Computer", 4, 5)
+    mygame = game.initializeGame("Human", "Computer", 6, 7)
     display(mygame.board.state)
     println()
 
-    flag = true
+    users_turn = true
+    force_random_move = false    # Force random move for the next move
+    rand_play = true
+
     while !game.winner(mygame) && !game.finished(mygame)
-        move =  flag ? makeUserMove(mygame) : makeAiMove(mygame)
+        if !force_random_move
+            move =  users_turn ? makeUserMove(mygame) : makeAiMove(mygame, rand_play)
+        end
+
+        if force_random_move || (move == RANDOM_MOVE)                     
+            move = game.randomMove(mygame)
+            force_random_move = !force_random_move #  Change to true if the next player needs to make a random move, or false if it's the second player's move
+   
+        end
+
         game.move(mygame, move)
-        flag = !flag
+        users_turn = !users_turn
 
         print("\n\nMade Move\n\n")
         display(mygame.board.state)
@@ -152,6 +194,9 @@ end
 function makeUserMove(mygame::game.Game)
     while true
         move = getUserInput()
+        if move == RANDOM_MOVE
+            break
+        end
         try
             game.validate_move_row(mygame, move)
             return move

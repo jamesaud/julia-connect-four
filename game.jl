@@ -18,6 +18,7 @@ mutable struct Game
     players::Array{Player}
     turn::Int64                             # Index of the player array for who's turn it is
     lastMove::Move
+    randomPlay::Bool                        # Whether random move is enabled
 end
 
 function currentPlayer(mygame::Game)
@@ -48,7 +49,25 @@ function nextTurn(mygame::Game)
     return turn
 end
 
-Game(board, players) = Game(board, players, 1, Move(1, 1))
+function randomMove(mygame::Game)::Integer
+    moves = available_moves(mygame)
+    choice = rand(1:length(moves))
+    move = moves[choice]
+    return move 
+end
+
+function moveRandom(mygame::Game, number_of_moves=1)
+    # number_of_moves: number of sequential moves. 2 is the given rule to force the next player to move
+    # can be set to 1 to manually make the move, and do some analysis in between
+    for _ = 1:number_of_moves
+        y = randomMove(mygame)
+        move(mygame, y)
+    end
+end
+
+# Create a better API for Game
+Game(board, players) = Game(board, players, 1, Move(1, 1), true)   
+Game(board, players, randomPlay) = Game(board, players, 1, Move(1, 1), randomPlay)
 
 # Returns a list containing all available columns to move
 function available_moves(board::gameboard.Board)
@@ -122,14 +141,14 @@ function changeTurn(game::Game)
 end
 
 
-function initializeGame(playerName1::String, playerName2::String, width::Int64, height::Int64)
+function initializeGame(playerName1::String, playerName2::String, width::Int64, height::Int64, randomPlay::Bool=true)
     if width < 0 || height < 0
         throw(DomainError((width, height), "board dimensions can't be negative"))
     end
     b = gameboard.MakeBoard(width, height)
     p1 = Player(playerName1, "X")
     p2 = Player(playerName2, "O")
-    return Game(b, [p1, p2])
+    return Game(b, [p1, p2], randomPlay)
 end
 
 # Determines whether the LAST move is a winning move
@@ -174,6 +193,30 @@ function _checkVertical(game::Game, x::Int64, y::Int64)
         count += 1
     end
 
+    return count
+end
+
+
+function _checkBlanks(game::Game, x::Int64, y::Int64)
+    state = game.board.state
+    token = state[x, y]
+    board_width, board_height = size(state)[2], size(state)[1]
+    count = 0
+
+    left = x, y - 1
+    right = x, y + 1
+    down = x + 1, y
+    up = x - 1, y
+    
+    for (i, j) in [left, right, up, down]
+        if i < 1 || j < 1 || i > board_height || j > board_width
+            continue
+      
+        elseif state[i, j] == gameboard.FILLER_CHAR
+            count += 1
+        end
+    end
+    # Down
     return count
 end
 
