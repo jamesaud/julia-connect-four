@@ -7,7 +7,7 @@ using Random
 using Statistics
 
 RANDOM_MOVE = -1
-
+MONTO_CARLO_DURATION = 4
 
 SCORES = Dict{Union{String, Integer}, Integer}(
     "win" => 1000,
@@ -150,8 +150,8 @@ function randomMove(mygame::game.Game)
 end
 
 function makeAiMove(mygame::game.Game, random_play)
-    #move = randomMove(mygame)
-    move = minimax(mygame, random_play)
+    # move = minimax(mygame, random_play)
+    move = monteCarloSimulation(mygame)
     return move
 end
 
@@ -222,21 +222,191 @@ function getUserInput()
     return move
 end
 
-# mygame = game.initializeGame("Computer", "Human", 4, 5)
-# game.move(mygame, 1)
-# game.move(mygame, 2)
-# game.move(mygame, 1)
-# game.move(mygame, 2)
-# game.move(mygame, 1)
-# game.move(mygame, 2)
-# game.move(mygame, 1)
 
-# display(mygame.board.state)
-# println()
-# println(evaluation(mygame))
+#### MONTE CARLO
+WIN = 1
+LOSE = -1
+TIE = 0
 
 
+struct MonteCarlo
+    states     # Dictionary of {board: stats}
+    game
+end
 
+
+function makeMonteCarlo(mygame)
+    mc = MonteCarlo(Dict(), mygame)
+    add_state(mygame, mc.states)
+    return mc
+end
+
+
+mutable struct Stats
+    game::Any            # Type game.Game
+    wins::Integer  
+    losses::Integer  
+    ties::Integer    
+    parents::Any  # Set of states
+    children::Any # Set of states
+end
+
+
+function add_state(mygame, states, parent=nothing)
+    # If state doesn't exist yet, add it
+    state = mygame.board.state
+    stats = get(states, state, 0)
+
+    if stats == 0  # Doesn't exist yet
+        stats = Stats(deepcopy(mygame), 0, 0, 0, Set(), Set())
+        states[mygame.board.state] = stats
+    end
+
+    if parent != nothing
+        push!(states[parent].children, state)
+        push!(stats.parents, parent)
+    end
+end
+
+
+# Return the end state from a random simulation, and whether there is a winner
+function simulation(state, states)
+    mygame = states[state].game
+    mygame = deepcopy(mygame)
+    turn = mygame.turn
+
+    # EXPANSION 
+    game.moveRandom(mygame)
+    add_state(mygame, states, state)
+
+    if game.winner(mygame)
+        return turn, mygame.board.state
+    elseif game.finished(mygame)        # Tie Game
+        return 0, mygame.board.state
+    else
+        # SIMULATE UNTIL END STATE
+        return simulation(mygame.board.state, states)
+    end
+end
+
+
+function backpropogation(state, states, outcome)
+    # TIE, WIN, AND LOSS
+    @assert -1 <= outcome <= 1
+
+    for pstate in states[state].parents
+        pstat = states[pstate]
+        if outcome == WIN
+            pstat.wins += 1
+        elseif outcome == LOSE
+            pstat.losses += 1
+        elseif outcome == TIE
+            pstat.ties += 1
+        end
+
+        # RECURSIVELY BACKPROP UP THE TREE
+        backpropogation(pstate, states, outcome)
+    end
+end
+
+function simulate_and_backprop(mc::MonteCarlo)
+    winner, end_state = simulation(mc.game.board.state, mc.states)
+
+    if winner == mc.game.turn
+        outcome = WIN
+    elseif winner == game.nextTurn(mc.game)
+        outcome = LOSE
+    elseif winner == 0
+        outcome = TIE
+    else
+        outcome = nothing
+    end
+
+    # UPDATE AND BACKPROP
+    backpropogation(end_state, mc.states, outcome)
+    return winner, end_state
+end
+
+
+function policyMove(mc::MonteCarlo)
+    curr_state = mc.game.board.state
+    curr_stats = mc.states[curr_state]
+
+    # Don't make an immediately stupid move
+    for state in curr_stats.children
+        stats = mc.states[state]
+        if game.winner(stats.game)
+            return stats.game.lastMove.y
+        end
+    end
+    return nothing
+end
+
+function policyDontMove(mc::MonteCarlo)
+    curr_state = mc.game.board.state
+    curr_stats = mc.states[curr_state]
+
+    # Don't make an immediately stupid move
+    bad_moves = []
+    for state1 in curr_stats.children
+        for state2 in mc.states[state1].children
+            stats = mc.states[state2]
+
+            # If player lost the game, don't make the move
+            if game.winner(stats.game)
+                push!(bad_moves, stats.game.lastMove.y)
+            end
+        end
+    end
+    return bad_moves
+end
+
+function nextBestMove(mc::MonteCarlo)
+
+    # SELECTION
+    policy_move = policyMove(mc)
+    if policy_move != nothing
+        return policy_move
+    end
+
+    bad_moves = policyDontMove(mc)
+    # END SELECTION
+
+    curr_state = mc.game.board.state
+    curr_stats = mc.states[curr_state]
+    best_win_rate, best_move = -1, -1
+
+    # LOOK AT STATS FROM SIMULATION 
+    for state in curr_stats.children
+        stats = mc.states[state]
+        wins, losses = stats.wins, stats.losses
+        win_rate = wins / (wins + losses)
+        move = stats.game.lastMove.y
+
+        if move in bad_moves
+            continue
+        elseif win_rate > best_win_rate
+            best_win_rate = win_rate
+            best_move = move  
+        end 
+    end
+    return best_move
+end
+
+function monteCarloSimulation(mygame)
+    mygame = deepcopy(mygame)
+    mc = makeMonteCarlo(mygame)
+
+    duration = MONTO_CARLO_DURATION # seconds
+    start = finish = time()
+    while finish - start < duration
+        finish = time()
+        simulate_and_backprop(mc)
+    end 
+
+    move = nextBestMove(mc)
+    return move
+end
 
 runGame()
 end

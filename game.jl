@@ -21,6 +21,7 @@ mutable struct Game
     randomPlay::Bool                        # Whether random move is enabled
 end
 
+
 function currentPlayer(mygame::Game)
     return mygame.players[mygame.turn]
 end
@@ -298,3 +299,5 @@ function _checkHorizontal(game::Game, x::Int64, y::Int64)
     return count
 end
 end
+
+
